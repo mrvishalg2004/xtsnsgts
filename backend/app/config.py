@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     DELIVERY_START_DATE: str = "2026-01-02"
     DELIVERY_END_DATE: str = "2026-02-01"
 
+    # In-memory cache time-to-live in seconds (default 15 minutes)
+    CACHE_TTL_SECONDS: int = 900
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

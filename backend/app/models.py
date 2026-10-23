@@ -90,3 +90,118 @@ class EvaluationMetrics(BaseModel):
     missing_forecast_count: int = Field(
         0, description="Number of target intervals missing an eligible forecast before cutoff"
     )
+
+
+class FilterParameters(BaseModel):
+    """Normalized query filters applied to evaluation."""
+
+    decision_start_date: str
+    decision_end_date: str
+    cutoff_time: str
+    delivery_start_date: str
+    delivery_end_date: str
+
+
+class DataQualityCounts(BaseModel):
+    """Data processing counters describing actual evaluation execution."""
+
+    raw_fuelhh_count: int = Field(..., description="Total raw FUELHH actual records retrieved")
+    raw_windfor_count: int = Field(..., description="Total raw WINDFOR forecast records retrieved")
+    selected_forecast_count: int = Field(..., description="Distinct target hours with an eligible forecast before cutoff")
+    excluded_leakage_count: int = Field(..., description="Forecast revisions excluded due to publishTime > cutoff")
+    hourly_actual_count: int = Field(..., description="Complete hourly actual periods constructed from pairs of half-hours")
+    matched_count: int = Field(..., description="Complete hourly periods with both eligible forecast and actual")
+    missing_actual_count: int = Field(..., description="Delivery hours having forecast but lacking complete actual")
+    missing_forecast_count: int = Field(..., description="Delivery hours having complete actual but lacking forecast before cutoff")
+    missing_both_count: int = Field(..., description="Delivery hours within scope missing both forecast and complete actual")
+
+
+class CacheMetadata(BaseModel):
+    """Metadata regarding cache status and upstream data freshness."""
+
+    cached: bool
+    data_retrieval_timestamp: Optional[datetime] = None
+    cache_ttl_seconds: int
+
+
+class SummaryMetricsResponse(BaseModel):
+    """Payload for GET /api/summary-metrics."""
+
+    status: str = "ok"
+    filters: FilterParameters
+    metrics: EvaluationMetrics
+    data_quality: DataQualityCounts
+    cache_metadata: CacheMetadata
+
+
+class TimeseriesRecord(BaseModel):
+    """Hourly observation or missing period record for GET /api/timeseries."""
+
+    target_start_time: datetime
+    delivery_date: str
+    decision_date: str
+    decision_cutoff: datetime
+    forecast_publish_time: Optional[datetime] = None
+    forecast_generation_mw: Optional[float] = None
+    actual_generation_mw: Optional[float] = None
+    error_mw: Optional[float] = None
+    absolute_error_mw: Optional[float] = None
+    availability_status: str = Field(
+        ...,
+        description="'matched' | 'missing_forecast' | 'missing_actual' | 'missing_both'",
+    )
+
+    @field_validator("target_start_time", "decision_cutoff", "forecast_publish_time", mode="after")
+    @classmethod
+    def validate_utc(cls, v: Optional[datetime]) -> Optional[datetime]:
+        if v is not None:
+            return ensure_utc(v)
+        return v
+
+
+class TimeseriesResponse(BaseModel):
+    """Payload for GET /api/timeseries."""
+
+    status: str = "ok"
+    filters: FilterParameters
+    total_periods: int
+    records: list[TimeseriesRecord]
+    cache_metadata: CacheMetadata
+
+
+class RevisionItem(BaseModel):
+    """A single WINDFOR publication run revision for a target startTime."""
+
+    publish_time: datetime
+    forecast_generation_mw: float
+    is_eligible: bool
+    is_selected: bool
+    status_reason: str = Field(
+        ...,
+        description="'selected' | 'eligible_but_not_selected' | 'published_after_cutoff'",
+    )
+
+    @field_validator("publish_time", mode="after")
+    @classmethod
+    def validate_utc(cls, v: datetime) -> datetime:
+        return ensure_utc(v)
+
+
+class RevisionsResponse(BaseModel):
+    """Payload for GET /api/revisions."""
+
+    status: str = "ok"
+    target_start_time: datetime
+    delivery_date: str
+    decision_date: str
+    decision_cutoff: datetime
+    total_revisions: int
+    eligible_revisions_count: int
+    selected_revision: Optional[RevisionItem] = None
+    revisions: list[RevisionItem]
+    cache_metadata: CacheMetadata
+
+    @field_validator("target_start_time", "decision_cutoff", mode="after")
+    @classmethod
+    def validate_utc(cls, v: datetime) -> datetime:
+        return ensure_utc(v)

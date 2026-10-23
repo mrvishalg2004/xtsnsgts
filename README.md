@@ -86,41 +86,118 @@ $$\text{error\_mw} = \text{forecast\_generation} - \text{actual\_generation}$$
    * `missing_actual_count`: Delivery hours with eligible forecasts but incomplete actuals.
    * `missing_forecast_count`: Delivery hours with complete actuals but no forecast before cutoff.
 
-*Note: MAPE is omitted as a primary metric because near-zero actual generation causes division-by-zero or distorted percentage values.*
+### Analytical Finding on January 2, 2026 (MAE == MBE)
+In real historical outturn on January 2, 2026, both MAE and MBE are exactly **3,196.21 MW**. Investigation confirms that across all 24 hours of that day, every single hourly forecast error was positive ($\text{forecast} \ge \text{actual}$, with forecast errors ranging from +2,868 MW to +3,500 MW). Because $e_t \ge 0$ for all $t$, $|e_t| = e_t$, meaning $\text{MAE} \equiv \text{MBE}$ identically. This is a mathematical property of uniform over-forecasting during that 24-hour delivery window.
 
 ---
 
-## 4. Current Implementation Status
+## 4. Production REST API Endpoints
 
-### Implemented in Phase 2 & Phase 3
-- [x] Initialized Git repository and confirmed remote compatibility.
-- [x] Clean minimal project architecture (FastAPI backend + Vite React frontend).
-- [x] FastAPI operational health endpoint (`GET /api/health`) and OpenAPI interactive documentation (`/docs`).
-- [x] Resilient Elexon HTTP client (`backend/app/elexon_client.py`) for `FUELHH` and `WINDFOR` streams with defensive validation.
-- [x] Strict anti-leakage forecast revision selection engine (`backend/app/forecast_engine.py`).
-- [x] Half-hourly to 1-hour actual aggregation and duplicate revision resolution.
-- [x] Statistical accuracy metrics calculation (`backend/app/metrics.py`) with zero-denominator safety.
-- [x] Domain models for normalized records, observations, and evaluation metrics (`backend/app/models.py`).
-- [x] Complete automated unit test suite with 21 passing offline tests (`pytest`).
-- [x] Bounded live API smoke test verifying Elexon stream schemas and January 2026 data outturn.
-- [x] Containerization with `Dockerfile`s and `docker-compose.yml`.
+The FastAPI backend exposes the following REST endpoints on `http://localhost:8000`:
 
-### Remaining for Future Phases
-- [ ] Phase 4: Production REST API endpoints (`/api/forecasts`, `/api/actuals`, `/api/metrics`, `/api/compare`) with caching.
-- [ ] Phase 5: Interactive trading-desk frontend dashboard with time-series charts, cutoff selector, and error distribution.
-- [ ] Phase 6: Production deployment configuration and end-to-end verification.
+### A. Operational Health
+* **`GET /api/health`**
+* Returns JSON payload verifying service status and current UTC timestamp.
+
+### B. Aggregated Summary Metrics
+* **`GET /api/summary-metrics`**
+* **Query Parameters:**
+  * `decision_start_date` (string, default: `2026-01-01`): Must be within `2026-01-01` to `2026-01-31`.
+  * `decision_end_date` (string, default: `2026-01-31`): Must be within `2026-01-01` to `2026-01-31`.
+  * `cutoff_time` (string, default: `09:50`): Must be valid `HH:MM` in 24-hour UTC format.
+* **Example Response:**
+  ```json
+  {
+    "status": "ok",
+    "filters": {
+      "decision_start_date": "2026-01-01",
+      "decision_end_date": "2026-01-01",
+      "cutoff_time": "09:50",
+      "delivery_start_date": "2026-01-02",
+      "delivery_end_date": "2026-01-02"
+    },
+    "metrics": {
+      "mae": 3196.21,
+      "rmse": 3246.20,
+      "mbe": 3196.21,
+      "wape": 21.07,
+      "matched_count": 24,
+      "missing_actual_count": 0,
+      "missing_forecast_count": 0
+    },
+    "data_quality": {
+      "raw_fuelhh_count": 48,
+      "raw_windfor_count": 949,
+      "selected_forecast_count": 24,
+      "excluded_leakage_count": 24,
+      "hourly_actual_count": 24,
+      "matched_count": 24,
+      "missing_actual_count": 0,
+      "missing_forecast_count": 0,
+      "missing_both_count": 0
+    },
+    "cache_metadata": {
+      "cached": false,
+      "data_retrieval_timestamp": "2026-10-23T15:29:40.123456Z",
+      "cache_ttl_seconds": 900
+    }
+  }
+  ```
+
+### C. Hourly Timeseries
+* **`GET /api/timeseries`**
+* **Query Parameters:** Same as summary endpoint (`decision_start_date`, `decision_end_date`, `cutoff_time`).
+* **Response Structure:** Chronological ascending UTC array of all expected hourly delivery periods.
+  ```json
+  {
+    "status": "ok",
+    "filters": { ... },
+    "total_periods": 24,
+    "records": [
+      {
+        "target_start_time": "2026-01-02T00:00:00Z",
+        "delivery_date": "2026-01-02",
+        "decision_date": "2026-01-01",
+        "decision_cutoff": "2026-01-01T09:50:00Z",
+        "forecast_publish_time": "2026-01-01T08:30:00Z",
+        "forecast_generation_mw": 18699.0,
+        "actual_generation_mw": 15366.5,
+        "error_mw": 3332.5,
+        "absolute_error_mw": 3332.5,
+        "availability_status": "matched"
+      }
+    ],
+    "cache_metadata": { ... }
+  }
+  ```
+* **Availability Statuses:** `matched`, `missing_forecast`, `missing_actual`, `missing_both`. Missing values are represented as `null`, never fabricated zeros.
+
+### D. Revision Inspector
+* **`GET /api/revisions`**
+* **Query Parameters:**
+  * `target_start_time` (string, required): Hourly ISO-8601 UTC timestamp (e.g. `2026-01-02T10:00:00Z`).
+  * `cutoff_time` (string, default: `09:50`).
+* **Response Structure:** Returns all available WINDFOR forecast publications for that target hour, classifying them as `selected`, `eligible_but_not_selected`, or `published_after_cutoff`.
+
+---
+
+### Caching & Resource Management
+* **In-Memory TTL Cache:** Thread-safe caching with a default TTL of 15 minutes (`CACHE_TTL_SECONDS = 900`).
+* **Filter Re-use:** When filters or cutoff times change, raw data is reused from the cache and analysis is recomputed in memory without redundant upstream network queries.
+* **Instance Scope:** The in-memory cache is local to the backend instance.
+* **Error Resilience:** Failed or partial requests are never cached as valid data. Upstream errors return HTTP 502/504 with sanitized JSON responses and no internal traceback leaks.
 
 ---
 
 ## 5. Verification & Testing
 
-### Running Backend Unit Tests Locally
-All unit tests execute offline without requiring live network connectivity:
+### Running Backend Test Suite
+All unit and integration tests run offline without network dependency:
 ```bash
 PYTHONPATH=backend backend/.venv/bin/pytest backend/tests -v
 ```
 
-### Running Backend Unit Tests Inside Docker
+### Running Backend Tests Inside Docker
 ```bash
 docker compose build backend
 docker run --rm reintai-backend:latest pytest tests -v
@@ -128,28 +205,7 @@ docker run --rm reintai-backend:latest pytest tests -v
 
 Expected result:
 ```
-tests/test_elexon_client.py::test_parse_iso_utc_and_format PASSED
-tests/test_elexon_client.py::test_normalize_fuelhh_record_valid PASSED
-tests/test_elexon_client.py::test_normalize_fuelhh_record_rejects_non_wind_and_invalid_generation PASSED
-tests/test_elexon_client.py::test_normalize_windfor_record_valid PASSED
-tests/test_elexon_client.py::test_fetch_fuelhh_mocked_http_transport PASSED
-tests/test_elexon_client.py::test_fetch_windfor_mocked_http_transport PASSED
-tests/test_elexon_client.py::test_fetch_handles_empty_and_error_responses PASSED
-tests/test_forecast_engine.py::test_decision_cutoff_derivation PASSED
-tests/test_forecast_engine.py::test_query_boundaries_include_december_lookback PASSED
-tests/test_forecast_engine.py::test_december_publication_eligible_for_early_january_delivery PASSED
-tests/test_forecast_engine.py::test_forecast_cutoff_boundary_inclusion_and_exclusion PASSED
-tests/test_forecast_engine.py::test_out_of_scope_dates_are_excluded PASSED
-tests/test_forecast_engine.py::test_hourly_actual_aggregation_requires_both_half_hours_and_averages_mw PASSED
-tests/test_forecast_engine.py::test_duplicate_actual_revisions_resolved_deterministically PASSED
-tests/test_forecast_engine.py::test_anti_leakage_proves_future_revision_cannot_influence_evaluation PASSED
-tests/test_health.py::test_health_check_returns_ok PASSED
-tests/test_health.py::test_root_endpoint_returns_info PASSED
-tests/test_metrics.py::test_hand_calculated_metrics_precision PASSED
-tests/test_metrics.py::test_negative_bias PASSED
-tests/test_metrics.py::test_zero_actual_generation_preserves_validity_and_handles_wape PASSED
-tests/test_metrics.py::test_empty_observations PASSED
-======================== 21 passed in 0.24s =========================
+======================== 35 passed, 1 warning in 0.15s =========================
 ```
 
 ### Frontend Build Verification
@@ -159,6 +215,31 @@ npm --prefix frontend run build
 
 ---
 
-## 6. AI Tool Disclosure
+## 6. Current Implementation Status
+
+### Implemented in Phases 2, 3, & 4
+- [x] Initialized Git repository and confirmed remote compatibility.
+- [x] Clean minimal project architecture (FastAPI backend + Vite React frontend).
+- [x] FastAPI operational health endpoint (`GET /api/health`) and OpenAPI interactive documentation (`/docs`).
+- [x] Resilient Elexon HTTP client (`backend/app/elexon_client.py`) for `FUELHH` and `WINDFOR` streams with defensive validation.
+- [x] Strict anti-leakage forecast revision selection engine (`backend/app/forecast_engine.py`).
+- [x] Half-hourly to 1-hour actual aggregation and duplicate revision resolution.
+- [x] Statistical accuracy metrics calculation (`backend/app/metrics.py`) with zero-denominator safety.
+- [x] Reusable `AnalysisService` with thread-safe in-memory TTL caching.
+- [x] Production REST API endpoints:
+  - `GET /api/summary-metrics`
+  - `GET /api/timeseries`
+  - `GET /api/revisions`
+- [x] Rigorous input validation and sanitized 400/502/504 error responses.
+- [x] Comprehensive test suite of 35 tests (unit, integration, error handling, caching).
+- [x] Docker and Docker Compose container verification.
+
+### Remaining for Future Phases
+- [ ] Phase 5: Interactive trading-desk frontend dashboard with time-series charts, cutoff selector, and error distribution.
+- [ ] Phase 6: Production deployment configuration and end-to-end verification.
+
+---
+
+## 7. AI Tool Disclosure
 
 AI assistance: ChatGPT and Antigravity were used to assist with project planning, implementation, and code review. Application behavior is validated through the documented tests and verification steps.
