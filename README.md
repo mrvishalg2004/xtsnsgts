@@ -189,10 +189,49 @@ The FastAPI backend exposes the following REST endpoints on `http://localhost:80
 
 ---
 
-## 5. Verification & Testing
+## 5. Interactive React Analytics Dashboard
 
-### Running Backend Test Suite
-All unit and integration tests run offline without network dependency:
+The Phase 5 frontend transforms the application into an analytical trading-desk dashboard connected to the backend REST API:
+
+### A. Dashboard Header & Temporal Distinction
+* **Connectivity & Freshness:** Displays real backend operational status (`/api/health`) and real-time response cache metadata (`cache_metadata.cached` and retrieval timestamp).
+* **Temporal Context:** Visibly contrasts the configured historical sample decision cutoff (default `09:50 UTC on D-1`) with the current live system clock, preventing confusion between historical evaluation benchmarks and real-time operations.
+
+### B. Decision Parameters & Derived Delivery Window
+* **Date Restrictions:** Filter inputs are strictly bounded to January 1–31, 2026 decision dates.
+* **Derived Delivery Horizon:** Automatically displays the effective physical delivery window ($D+1$, January 2 – February 1, 2026).
+* **Controlled Network Requests:** Inputs maintain a draft state so typing or changing dates does not trigger unconstrained network queries. Analysis is executed via an explicit **Apply Parameters** or **Run Analysis** action.
+* **Transient Refresh Feedback:** If a manual refresh fails, previous successful results are retained while displaying a non-destructive banner indicating data age.
+
+### C. Accuracy KPIs & Residual Metrics
+* **Mean Absolute Error (MAE):** Average magnitude of hourly forecast deviations in MW.
+* **Root Mean Squared Error (RMSE):** Variance-penalizing quadratic deviation in MW.
+* **Mean Bias Error (MBE):** Directional signed deviation in MW ($F_t - A_t$). Visibly labeled with **Over-Forecast Bias** (amber), **Under-Forecast Bias** (blue/purple), or **Zero Bias** (green).
+* **Weighted Absolute Percentage Error (WAPE):** Volume-weighted error percentage ($\sum |e_t| / \sum A_t \times 100\%$).
+* **Matched Observations:** Statistical sample size of paired hours evaluated. Missing or unavailable metrics display as an em dash (`—`), never as zero.
+
+### D. Generation & Error Visualizations
+* **Forecast vs. Actual Time-Series Chart:** Two continuous series comparing the decision-time eligible wind forecast against actual outturn. Missing intervals preserve visual gaps (`connectNulls={false}`) without zero-imputation. Includes resolution view toggles (*Full Window*, *7 Days*, *24h Sample*) and hover tooltips showing publication timestamps.
+* **Hourly Forecast Error Chart:** Plots signed residuals ($e_t = F_t - A_t$) against a visible zero reference line, color-coding over-forecast and under-forecast regimes without converting errors to absolute magnitudes.
+
+### E. Data Quality & Reconciliation Audit
+* Ingestion counters display raw FUELHH records, raw WINDFOR publications, selected pre-cutoff forecasts, post-cutoff leakage revisions excluded, complete hourly actuals, and paired observations.
+* Confirms that missing observations are excluded from paired accuracy indicators without zero-imputation.
+
+### F. Hourly Timeseries Ledger Table
+* Chronological sortable table with delivery target times, delivery days, decision days, publication timestamps, forecast MW, actual MW, signed error MW, absolute error MW, and availability status badges (`Matched`, `Missing Forecast`, `Missing Actual`, `Missing Both`).
+* Supports client-side sorting, status filtering, and multi-page pagination.
+
+### G. Forecast Revision Inspector Modal
+* Clicking **Inspect** on any delivery hour opens an audit drawer/modal querying `GET /api/revisions`.
+* Displays the target delivery hour, decision cutoff, selected Day-Ahead benchmark, and the full chronological publication history of WINDFOR runs, categorizing each run as `selected`, `eligible_but_not_selected`, or `published_after_cutoff`.
+
+---
+
+## 6. Verification & Testing
+
+### Running Full Backend Test Suite
+All 35 unit and integration tests run offline without network dependencies:
 ```bash
 PYTHONPATH=backend backend/.venv/bin/pytest backend/tests -v
 ```
@@ -203,43 +242,77 @@ docker compose build backend
 docker run --rm reintai-backend:latest pytest tests -v
 ```
 
-Expected result:
-```
-======================== 35 passed, 1 warning in 0.15s =========================
+### Running Frontend Tests
+Frontend unit and integration tests (Vitest + React Testing Library + JSDOM):
+```bash
+npm --prefix frontend test
 ```
 
-### Frontend Build Verification
+### Running Frontend Linting & Production Build
 ```bash
+npm --prefix frontend run lint
 npm --prefix frontend run build
 ```
 
 ---
 
-## 6. Current Implementation Status
+## 7. Running with Docker Compose
 
-### Implemented in Phases 2, 3, & 4
+To build and run the full stack (FastAPI backend on port 8000 and Vite React dashboard on port 5173):
+
+```bash
+docker compose up -d
+```
+
+### Endpoints
+* **Interactive Dashboard:** `http://localhost:5173`
+* **FastAPI Backend Root:** `http://localhost:8000`
+* **API Documentation (Swagger UI):** `http://localhost:8000/docs`
+* **Health Check Endpoint:** `http://localhost:8000/api/health`
+
+### Environment Configuration
+The frontend communicates with the backend via the `VITE_API_BASE_URL` environment variable:
+* In local development: defaults to `http://localhost:8000`
+* In Docker Compose: configured in `docker-compose.yml`
+
+To stop the containers:
+```bash
+docker compose down
+```
+
+---
+
+## 8. Current Implementation Status
+
+### Implemented in Phases 2, 3, 4, & 5
 - [x] Initialized Git repository and confirmed remote compatibility.
-- [x] Clean minimal project architecture (FastAPI backend + Vite React frontend).
-- [x] FastAPI operational health endpoint (`GET /api/health`) and OpenAPI interactive documentation (`/docs`).
-- [x] Resilient Elexon HTTP client (`backend/app/elexon_client.py`) for `FUELHH` and `WINDFOR` streams with defensive validation.
+- [x] Clean full-stack architecture (FastAPI backend + Vite React frontend).
+- [x] Operational health endpoint (`GET /api/health`) and OpenAPI documentation (`/docs`).
+- [x] Resilient Elexon HTTP client (`backend/app/elexon_client.py`) for `FUELHH` and `WINDFOR` streams.
 - [x] Strict anti-leakage forecast revision selection engine (`backend/app/forecast_engine.py`).
 - [x] Half-hourly to 1-hour actual aggregation and duplicate revision resolution.
 - [x] Statistical accuracy metrics calculation (`backend/app/metrics.py`) with zero-denominator safety.
 - [x] Reusable `AnalysisService` with thread-safe in-memory TTL caching.
-- [x] Production REST API endpoints:
-  - `GET /api/summary-metrics`
-  - `GET /api/timeseries`
-  - `GET /api/revisions`
-- [x] Rigorous input validation and sanitized 400/502/504 error responses.
-- [x] Comprehensive test suite of 35 tests (unit, integration, error handling, caching).
-- [x] Docker and Docker Compose container verification.
+- [x] Production REST API endpoints (`/api/summary-metrics`, `/api/timeseries`, `/api/revisions`).
+- [x] Input validation and sanitized 400/502/504 error responses.
+- [x] 35 comprehensive backend tests (unit, integration, error handling, caching).
+- [x] Interactive React dashboard with modular component architecture.
+- [x] Decision parameters filter with draft state, Jan 2026 date bounds, and derived delivery range.
+- [x] 5 summary KPI cards (MAE, RMSE, MBE with visual bias badges, WAPE, matched hours).
+- [x] Forecast vs. actual generation time-series chart with gap preservation.
+- [x] Signed forecast error residual chart with zero reference line and directional coloring.
+- [x] Ingestion pipeline and data-quality audit panel with leakage-exclusion counters.
+- [x] Chronological timeseries ledger table with sorting, pagination, and status badges.
+- [x] Forecast revision inspector modal auditing WINDFOR publication runs.
+- [x] Race-condition protection with request cancellation and stale response prevention.
+- [x] Vitest and React Testing Library test suite (15 passing tests).
+- [x] Docker Compose multi-container verification and live browser validation.
 
 ### Remaining for Future Phases
-- [ ] Phase 5: Interactive trading-desk frontend dashboard with time-series charts, cutoff selector, and error distribution.
 - [ ] Phase 6: Production deployment configuration and end-to-end verification.
 
 ---
 
-## 7. AI Tool Disclosure
+## 9. AI Tool Disclosure
 
-AI assistance: ChatGPT and Antigravity were used to assist with project planning, implementation, and code review. Application behavior is validated through the documented tests and verification steps.
+AI assistance: ChatGPT and Antigravity were used to assist with project planning, architectural design, implementation, and code review. All application logic, algorithms, tests, and user interfaces are verified through the documented test suites and browser validations.
