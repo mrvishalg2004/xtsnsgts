@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import {
   checkHealth,
   fetchSummaryMetrics,
@@ -13,10 +13,11 @@ import GenerationChart from './components/GenerationChart';
 import ForecastErrorChart from './components/ForecastErrorChart';
 import DataQualityPanel from './components/DataQualityPanel';
 import TimeseriesTable from './components/TimeseriesTable';
-import RevisionInspector from './components/RevisionInspector';
 import LoadingState from './components/LoadingState';
 import ErrorState from './components/ErrorState';
 import EmptyState from './components/EmptyState';
+
+const RevisionInspector = lazy(() => import('./components/RevisionInspector'));
 
 const DEFAULT_FILTERS = {
   decision_start_date: '2026-01-01',
@@ -294,15 +295,19 @@ export default function App() {
       </main>
 
       {/* 4. Forecast Revision Audit Inspector Modal */}
-      <RevisionInspector
-        isOpen={isInspectorOpen}
-        onClose={handleCloseInspector}
-        targetStartTime={selectedTimestamp}
-        cutoffTime={appliedFilters.cutoff_time}
-        data={revisionsData}
-        isLoading={isLoadingRevisions}
-        error={revisionsError}
-      />
+      {isInspectorOpen && (
+        <Suspense fallback={null}>
+          <RevisionInspector
+            isOpen={isInspectorOpen}
+            onClose={handleCloseInspector}
+            targetStartTime={selectedTimestamp}
+            cutoffTime={appliedFilters.cutoff_time}
+            data={revisionsData}
+            isLoading={isLoadingRevisions}
+            error={revisionsError}
+          />
+        </Suspense>
+      )}
 
       {/* 5. Accessible Footer */}
       <footer className="app-footer">

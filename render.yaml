@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: wind-forecast-insights-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: "https://xtsnsgts.vercel.app,http://localhost:5173"
+      - key: ELEXON_BASE_URL
+        value: "https://data.elexon.co.uk/bmrs/api/v1"
+      - key: DEFAULT_DECISION_CUTOFF_TIME
+        value: "09:50"
+      - key: DECISION_START_DATE
+        value: "2026-01-01"
+      - key: DECISION_END_DATE
+        value: "2026-01-31"
+      - key: DELIVERY_START_DATE
+        value: "2026-01-02"
+      - key: DELIVERY_END_DATE
+        value: "2026-02-01"
+      - key: CACHE_TTL_SECONDS
+        value: "900"
