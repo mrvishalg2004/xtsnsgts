@@ -120,15 +120,22 @@ export default function GenerationChart({
       const month = d.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' });
       const hours = String(d.getUTCHours()).padStart(2, '0');
 
-      if (chartData.length <= 48) {
-        // High resolution: show "DD MMM HH:00"
-        return `${day} ${month} ${hours}:00`;
+      if (chartData.length <= 24) {
+        // High resolution (24h Sample): show clean hourly tick "HH:00"
+        return `${hours}:00`;
       }
-      // Lower resolution: show date if midnight, otherwise hour
+      if (chartData.length <= 168) {
+        // Medium resolution (First 7 Days): show date at midnight, otherwise hour
+        if (hours === '00') {
+          return `${day} ${month}`;
+        }
+        return `${hours}:00`;
+      }
+      // Full Window (month): show date transition clearly to avoid ambiguous time-of-day labels
       if (hours === '00') {
         return `${day} ${month}`;
       }
-      return `${hours}:00`;
+      return `${day} ${month} ${hours}:00`;
     } catch {
       return isoTime;
     }

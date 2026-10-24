@@ -85,3 +85,15 @@ def test_empty_observations():
     assert metrics.wape is None
     assert metrics.missing_actual_count == 5
     assert metrics.missing_forecast_count == 2
+
+
+def test_non_finite_generation_values_rejected():
+    """Observations with NaN or Inf are rejected by Pydantic models and calculate_metrics."""
+    with pytest.raises(ValueError, match="finite"):
+        make_observation(float("nan"), 100.0)
+
+    with pytest.raises(ValueError, match="finite"):
+        make_observation(100.0, float("inf"))
+
+    with pytest.raises(ValueError, match="finite"):
+        make_observation(float("-inf"), 100.0)

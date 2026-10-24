@@ -113,10 +113,20 @@ export default function ForecastErrorChart({ records = [] }) {
       const day = String(d.getUTCDate()).padStart(2, '0');
       const month = d.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' });
       const hours = String(d.getUTCHours()).padStart(2, '0');
+
+      if (errorData.length <= 24) {
+        return `${hours}:00`;
+      }
+      if (errorData.length <= 168) {
+        if (hours === '00') {
+          return `${day} ${month}`;
+        }
+        return `${hours}:00`;
+      }
       if (hours === '00') {
         return `${day} ${month}`;
       }
-      return `${hours}:00`;
+      return `${day} ${month} ${hours}:00`;
     } catch {
       return isoTime;
     }

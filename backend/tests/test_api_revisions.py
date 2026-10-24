@@ -59,7 +59,40 @@ def test_get_revisions_rejects_unaligned_or_out_of_scope_target(client):
     assert r_unaligned.status_code == 400
     assert "hourly boundary" in r_unaligned.json()["detail"]
 
-    # 2. Out of scope date (March 2026) rejected
+    # 2. Non-hourly minute/second unaligned (:15) rejected
+    r_minute = client.get("/api/revisions", params={"target_start_time": "2026-01-02T10:15:00Z"})
+    assert r_minute.status_code == 400
+    assert "hourly boundary" in r_minute.json()["detail"]
+
+    # 3. Out of scope date prior to January 2 (2026-01-01) rejected
+    r_early = client.get("/api/revisions", params={"target_start_time": "2026-01-01T23:00:00Z"})
+    assert r_early.status_code == 400
+    assert "out of scope" in r_early.json()["detail"]
+
+    # 4. Out of scope date after February 1 (March 2026) rejected
     r_out = client.get("/api/revisions", params={"target_start_time": "2026-03-01T10:00:00Z"})
     assert r_out.status_code == 400
     assert "out of scope" in r_out.json()["detail"]
+
+
+def test_target_start_time_timezone_contract(client):
+    """
+    Contract verification for validate_target_start_time():
+    - Accepts 'Z' UTC timestamp
+    - Accepts explicit UTC offset and converts correctly
+    - Rejects timezone-naive timestamp with HTTP 400
+    """
+    # 1. Valid 'Z' timestamp
+    r_z = client.get("/api/revisions", params={"target_start_time": "2026-01-02T10:00:00Z"})
+    assert r_z.status_code == 200
+    assert r_z.json()["target_start_time"] == "2026-01-02T10:00:00Z"
+
+    # 2. Valid explicit offset: +01:00 (11:00+01:00 == 10:00 UTC)
+    r_offset = client.get("/api/revisions", params={"target_start_time": "2026-01-02T11:00:00+01:00"})
+    assert r_offset.status_code == 200
+    assert r_offset.json()["target_start_time"] == "2026-01-02T10:00:00Z"
+
+    # 3. Timezone-naive timestamp rejected with HTTP 400
+    r_naive = client.get("/api/revisions", params={"target_start_time": "2026-01-02T10:00:00"})
+    assert r_naive.status_code == 400
+    assert "Timezone offset or 'Z' is required" in r_naive.json()["detail"]

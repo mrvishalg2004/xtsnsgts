@@ -105,17 +105,30 @@ def validate_cutoff_time(cutoff_str: str) -> str:
 
 def validate_target_start_time(target_str: str) -> datetime:
     """Validate target delivery timestamp is hourly aligned and within delivery horizon."""
+    if not isinstance(target_str, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid target_start_time '{target_str}'. Expected ISO-8601 UTC timestamp (e.g. 2026-01-02T12:00:00Z).",
+        )
     try:
         clean_str = target_str.replace("Z", "+00:00")
         dt = datetime.fromisoformat(clean_str)
-        utc_dt = ensure_utc(dt)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid target_start_time '{target_str}'. Expected ISO-8601 UTC timestamp (e.g. 2026-01-02T12:00:00Z).",
         )
 
-    # Must be aligned to hourly interval (minute=0, second=0)
+    # Reject timezone-naive values per API contract
+    if dt.tzinfo is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid target_start_time '{target_str}'. Timezone offset or 'Z' is required (e.g. 2026-01-02T12:00:00Z).",
+        )
+
+    utc_dt = dt.astimezone(timezone.utc)
+
+    # Must be aligned to hourly interval (minute=0, second=0, microsecond=0)
     if utc_dt.minute != 0 or utc_dt.second != 0 or utc_dt.microsecond != 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

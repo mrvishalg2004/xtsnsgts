@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
@@ -27,6 +28,13 @@ class ActualRecord(BaseModel):
             return ensure_utc(v)
         return v
 
+    @field_validator("generation", mode="after")
+    @classmethod
+    def validate_finite_generation(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("generation must be a finite number (cannot be NaN or Inf)")
+        return v
+
 
 class ForecastRecord(BaseModel):
     """Normalized wind-generation forecast record from WINDFOR."""
@@ -39,6 +47,13 @@ class ForecastRecord(BaseModel):
     @classmethod
     def validate_utc_tz(cls, v: datetime) -> datetime:
         return ensure_utc(v)
+
+    @field_validator("generation", mode="after")
+    @classmethod
+    def validate_finite_generation(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("generation must be a finite number (cannot be NaN or Inf)")
+        return v
 
 
 class AlignedObservation(BaseModel):
@@ -65,6 +80,13 @@ class AlignedObservation(BaseModel):
     def validate_utc_tz(cls, v: datetime) -> datetime:
         return ensure_utc(v)
 
+    @field_validator("forecast_generation", "actual_generation", "error_mw", "absolute_error_mw", mode="after")
+    @classmethod
+    def validate_finite_numbers(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("Observation generation and error values must be finite numbers")
+        return v
+
 
 class EvaluationMetrics(BaseModel):
     """Statistical forecast accuracy evaluation metrics."""
@@ -90,6 +112,13 @@ class EvaluationMetrics(BaseModel):
     missing_forecast_count: int = Field(
         0, description="Number of target intervals missing an eligible forecast before cutoff"
     )
+
+    @field_validator("mae", "rmse", "mbe", "wape", mode="after")
+    @classmethod
+    def validate_finite_metrics(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and not math.isfinite(v):
+            raise ValueError("Evaluation metric values must be finite numbers")
+        return v
 
 
 class FilterParameters(BaseModel):

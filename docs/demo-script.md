@@ -72,9 +72,9 @@
 - **Spoken Script:**
   > "A common commercial dispute in post-trade analysis is: *'Which forecast was actually available when we traded?'*
   >
-  > Clicking 'Inspect' opens our Forecast Revision Inspector. Here, for delivery on January 2nd at midnight, Elexon published multiple revisions. The system correctly identifies the 08:30 UTC publication on January 1st as the official selected benchmark—the latest revision prior to the 09:50 UTC cutoff.
+  > Clicking 'Inspect' opens our Forecast Revision Inspector. Here, for delivery on January 2nd at midnight, Elexon published multiple revisions across December 31st and January 1st. The system correctly identifies the 09:30 UTC publication on January 1st at 18,699 MW as the official selected benchmark—the latest revision prior to the 09:50 UTC cutoff.
   >
-  > Later runs, such as the 12:00 UTC publication, are explicitly flagged as 'Excluded (Post-Cutoff)'. Even though they predicted January 2nd delivery, they were published after the day-ahead auction closed. Including them would introduce lookahead bias.
+  > Later runs, such as the 11:30 UTC publication at 18,800 MW, are explicitly flagged as 'Excluded (Post-Cutoff)'. Even though they predicted January 2nd delivery, they were published after the day-ahead auction closed. Including them would introduce lookahead bias.
   >
   > In summary, this pilot proves that trading teams can systematically quantify wind forecast exposure, audit revision eligibility, and eliminate lookahead bias from their trading performance attribution. It does not execute trades or guarantee savings; it provides the reliable quantitative foundation for commercial decision-making."
 

@@ -231,7 +231,7 @@ The Phase 5 frontend transforms the application into an analytical trading-desk 
 ## 6. Verification & Testing
 
 ### Running Full Backend Test Suite
-All 36 unit and integration tests run offline without network dependencies:
+All 45 unit and integration tests run offline without network dependencies:
 ```bash
 PYTHONPATH=backend backend/.venv/bin/pytest backend/tests -v
 ```
@@ -333,7 +333,7 @@ docker compose up -d
 - [x] Reusable `AnalysisService` with thread-safe in-memory TTL caching.
 - [x] Production REST API endpoints (`/api/summary-metrics`, `/api/timeseries`, `/api/revisions`).
 - [x] Input validation and sanitized 400/502/504 error responses.
-- [x] 36 comprehensive backend tests (unit, integration, error handling, caching, CORS).
+- [x] 45 comprehensive backend tests (unit, integration, error handling, caching, CORS, lifecycle, non-finite guards).
 - [x] Interactive React dashboard with modular component architecture.
 - [x] Decision parameters filter with draft state, Jan 2026 date bounds, and derived delivery range.
 - [x] 5 summary KPI cards (MAE, RMSE, MBE with visual bias badges, WAPE, matched hours).

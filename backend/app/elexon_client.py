@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 import httpx
@@ -31,7 +32,11 @@ def parse_iso_utc(timestamp_str: Any) -> datetime:
         # Standardize Z suffix for fromisoformat compatibility
         clean_str = timestamp_str.replace("Z", "+00:00")
         dt = datetime.fromisoformat(clean_str)
-        return ensure_utc(dt)
+        if dt.tzinfo is None:
+            raise ElexonDataValidationError(
+                f"Timestamp '{timestamp_str}' is timezone-naive. Timezone offset or 'Z' is required."
+            )
+        return dt.astimezone(timezone.utc)
     except Exception as e:
         raise ElexonDataValidationError(
             f"Failed to parse timestamp '{timestamp_str}': {e}"
@@ -53,7 +58,7 @@ def format_iso_utc(dt: Union[datetime, str]) -> str:
 def normalize_fuelhh_record(raw: Dict[str, Any]) -> ActualRecord:
     """
     Validate and normalize a raw FUELHH record into an ActualRecord.
-    Enforces fuelType == 'WIND' and numeric generation. Does not silently convert missing values to 0.
+    Enforces fuelType == 'WIND' and finite numeric generation. Does not silently convert missing values to 0.
     """
     if not isinstance(raw, dict):
         raise ElexonDataValidationError(f"Expected dict record for FUELHH, got {type(raw).__name__}")
@@ -84,6 +89,11 @@ def normalize_fuelhh_record(raw: Dict[str, Any]) -> ActualRecord:
             f"Invalid numeric generation '{gen_raw}' in FUELHH record: {e}"
         ) from e
 
+    if not math.isfinite(generation):
+        raise ElexonDataValidationError(
+            f"Invalid non-finite generation value '{gen_raw}' in FUELHH record"
+        )
+
     settlement_period = raw.get("settlementPeriod")
     if settlement_period is not None:
         try:
@@ -104,7 +114,7 @@ def normalize_fuelhh_record(raw: Dict[str, Any]) -> ActualRecord:
 def normalize_windfor_record(raw: Dict[str, Any]) -> ForecastRecord:
     """
     Validate and normalize a raw WINDFOR record into a ForecastRecord.
-    Validates required startTime, publishTime, and numeric generation.
+    Validates required startTime, publishTime, and finite numeric generation.
     """
     if not isinstance(raw, dict):
         raise ElexonDataValidationError(f"Expected dict record for WINDFOR, got {type(raw).__name__}")
@@ -132,6 +142,11 @@ def normalize_windfor_record(raw: Dict[str, Any]) -> ForecastRecord:
             f"Invalid numeric generation '{gen_raw}' in WINDFOR record: {e}"
         ) from e
 
+    if not math.isfinite(generation):
+        raise ElexonDataValidationError(
+            f"Invalid non-finite generation value '{gen_raw}' in WINDFOR record"
+        )
+
     return ForecastRecord(
         start_time=start_time,
         publish_time=publish_time,
@@ -150,12 +165,31 @@ class ElexonClient:
     ):
         self.base_url = (base_url or settings.ELEXON_BASE_URL).rstrip("/")
         self.timeout = timeout
-        self._external_client = client
+        if client is not None:
+            self._client = client
+            self._owns_client = False
+        else:
+            self._client = httpx.Client(timeout=self.timeout)
+            self._owns_client = True
+
+    @property
+    def is_closed(self) -> bool:
+        """Check if internal client is closed."""
+        return self._client.is_closed if self._client is not None else True
 
     def _get_client(self) -> httpx.Client:
-        if self._external_client is not None:
-            return self._external_client
-        return httpx.Client(timeout=self.timeout)
+        return self._client
+
+    def close(self) -> None:
+        """Close managed HTTP client if owned by this instance."""
+        if self._owns_client and self._client is not None and not self._client.is_closed:
+            self._client.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def fetch_fuelhh(
         self,

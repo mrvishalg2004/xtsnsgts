@@ -90,8 +90,12 @@ class AnalysisService:
         elexon_client: Optional[ElexonClient] = None,
         cache_ttl_seconds: Optional[int] = None,
     ):
-        self.client = elexon_client or ElexonClient()
-        self._owns_client = elexon_client is None
+        if elexon_client is not None:
+            self.client = elexon_client
+            self._owns_client = False
+        else:
+            self.client = ElexonClient()
+            self._owns_client = True
         ttl = cache_ttl_seconds or settings.CACHE_TTL_SECONDS
         self.cache = RawDataCache(ttl_seconds=ttl)
         self._analysis_lock = threading.RLock()
@@ -100,8 +104,14 @@ class AnalysisService:
 
     def close(self) -> None:
         """Close managed HTTP client resources cleanly."""
-        if self._owns_client and hasattr(self.client, "_external_client") and self.client._external_client:
-            self.client._external_client.close()
+        if self._owns_client and self.client is not None:
+            self.client.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def clear_cache(self) -> None:
         """Clear both raw data and computed analysis caches."""

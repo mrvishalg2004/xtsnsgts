@@ -35,6 +35,17 @@ def calculate_metrics(
             missing_forecast_count=missing_forecast_count,
         )
 
+    # Verify all observations contain strictly finite values
+    for obs in observations:
+        if (
+            not math.isfinite(obs.forecast_generation)
+            or not math.isfinite(obs.actual_generation)
+            or not math.isfinite(obs.error_mw)
+        ):
+            raise ValueError(
+                f"Non-finite generation or error encountered in observation for target {obs.target_time}"
+            )
+
     errors = [obs.forecast_generation - obs.actual_generation for obs in observations]
     abs_errors = [abs(e) for e in errors]
     actuals = [obs.actual_generation for obs in observations]
@@ -45,11 +56,16 @@ def calculate_metrics(
     rmse = math.sqrt(mse)
     mbe = sum(errors) / n
 
+    if not math.isfinite(mae) or not math.isfinite(rmse) or not math.isfinite(mbe):
+        raise ValueError("Computed non-finite evaluation metrics")
+
     sum_actuals = sum(abs(a) for a in actuals)
     if sum_actuals == 0.0:
         wape: Optional[float] = None
     else:
         wape = (sum(abs_errors) / sum_actuals) * 100.0
+        if not math.isfinite(wape):
+            raise ValueError("Computed non-finite WAPE metric")
 
     return EvaluationMetrics(
         mae=mae,

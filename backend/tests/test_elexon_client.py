@@ -174,3 +174,50 @@ def test_fetch_handles_empty_and_error_responses():
     elexon_error = ElexonClient(client=client_error)
     with pytest.raises(ElexonHTTPError, match="500"):
         elexon_error.fetch_fuelhh("2026-01-01", "2026-01-01")
+
+
+def test_elexon_client_owns_and_closes_internal_client():
+    """Default ElexonClient instance owns its httpx.Client and closes it on close()."""
+    client = ElexonClient()
+    assert client._owns_client is True
+    assert not client.is_closed
+    client.close()
+    assert client.is_closed is True
+
+
+def test_elexon_client_preserves_injected_external_client():
+    """ElexonClient does not close an externally injected httpx.Client."""
+    external = httpx.Client()
+    client = ElexonClient(client=external)
+    assert client._owns_client is False
+    client.close()
+    assert not external.is_closed
+    external.close()
+
+
+def test_normalize_fuelhh_record_rejects_non_finite_values():
+    """FUELHH record normalization rejects NaN and infinite generation values."""
+    for val in [float("nan"), float("inf"), float("-inf"), "NaN", "Infinity", "-Infinity"]:
+        with pytest.raises(ElexonDataValidationError, match="non-finite"):
+            normalize_fuelhh_record({
+                "startTime": "2026-01-01T00:00:00Z",
+                "fuelType": "WIND",
+                "generation": val,
+            })
+
+
+def test_normalize_windfor_record_rejects_non_finite_values():
+    """WINDFOR record normalization rejects NaN and infinite generation values."""
+    for val in [float("nan"), float("inf"), float("-inf"), "NaN", "Infinity", "-Infinity"]:
+        with pytest.raises(ElexonDataValidationError, match="non-finite"):
+            normalize_windfor_record({
+                "startTime": "2026-01-01T00:00:00Z",
+                "publishTime": "2025-12-31T20:00:00Z",
+                "generation": val,
+            })
+
+
+def test_parse_iso_utc_rejects_timezone_naive():
+    """parse_iso_utc strictly rejects timezone-naive ISO strings without UTC indicator."""
+    with pytest.raises(ElexonDataValidationError, match="timezone-naive"):
+        parse_iso_utc("2026-01-01T00:00:00")

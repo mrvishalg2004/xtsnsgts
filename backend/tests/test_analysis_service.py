@@ -54,3 +54,21 @@ def test_analysis_service_close_is_safe(test_service):
     test_service.close()
     # Double close should not raise
     test_service.close()
+
+
+def test_analysis_service_owns_and_closes_default_client():
+    """Default AnalysisService creates an owned ElexonClient and closes it on shutdown."""
+    service = AnalysisService()
+    assert service._owns_client is True
+    assert service.client._owns_client is True
+    assert not service.client.is_closed
+    service.close()
+    assert service.client.is_closed is True
+
+
+def test_analysis_service_preserves_externally_injected_client(mock_elexon_client):
+    """AnalysisService does not close externally injected ElexonClient instances."""
+    service = AnalysisService(elexon_client=mock_elexon_client)
+    assert service._owns_client is False
+    service.close()
+    assert mock_elexon_client.is_closed is False
