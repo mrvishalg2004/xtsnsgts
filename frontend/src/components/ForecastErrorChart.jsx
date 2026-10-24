@@ -173,19 +173,19 @@ export default function ForecastErrorChart({ records = [] }) {
             data={errorData}
             margin={{ top: 12, right: 24, left: 16, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#263554" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
 
             <XAxis
               dataKey="target_start_time"
               tickFormatter={formatXAxisTick}
-              stroke="#647b9f"
-              tick={{ fill: '#9bb0d3', fontSize: 12 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 12 }}
               minTickGap={45}
             />
 
             <YAxis
-              stroke="#647b9f"
-              tick={{ fill: '#9bb0d3', fontSize: 12 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 12 }}
               unit=" MW"
               width={80}
               tickFormatter={(v) => Number(v).toLocaleString('en-GB')}
@@ -193,13 +193,13 @@ export default function ForecastErrorChart({ records = [] }) {
 
             <Tooltip content={<CustomErrorTooltip />} />
 
-            <ReferenceLine y={0} stroke="#9bb0d3" strokeWidth={1.5} />
+            <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} />
 
             <Bar dataKey="error_mw" name="Signed Error" isAnimationActive={false}>
               {errorData.map((entry) => (
                 <Cell
                   key={`cell-${entry.target_start_time}`}
-                  fill={entry.error_mw >= 0 ? '#ffab00' : '#7c4dff'}
+                  fill={entry.error_mw >= 0 ? '#f59e0b' : '#7c3aed'}
                 />
               ))}
             </Bar>

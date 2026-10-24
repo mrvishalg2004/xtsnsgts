@@ -210,19 +210,19 @@ export default function GenerationChart({
             margin={{ top: 12, right: 24, left: 16, bottom: 20 }}
             onClick={handlePointClick}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#263554" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
 
             <XAxis
               dataKey="target_start_time"
               tickFormatter={formatXAxisTick}
-              stroke="#647b9f"
-              tick={{ fill: '#9bb0d3', fontSize: 12 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 12 }}
               minTickGap={45}
             />
 
             <YAxis
-              stroke="#647b9f"
-              tick={{ fill: '#9bb0d3', fontSize: 12 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 12 }}
               unit=" MW"
               width={80}
               tickFormatter={(v) => Number(v).toLocaleString('en-GB')}
@@ -241,10 +241,10 @@ export default function GenerationChart({
               type="monotone"
               dataKey="forecast_generation_mw"
               name="Day-Ahead Forecast (Pre-Cutoff)"
-              stroke="#00e5ff"
+              stroke="#0284c7"
               strokeWidth={2}
-              dot={chartData.length <= 48 ? { r: 3, fill: '#00e5ff' } : false}
-              activeDot={{ r: 6, fill: '#00e5ff' }}
+              dot={chartData.length <= 48 ? { r: 3, fill: '#0284c7' } : false}
+              activeDot={{ r: 6, fill: '#0284c7' }}
               connectNulls={false}
               isAnimationActive={false}
             />
@@ -254,10 +254,10 @@ export default function GenerationChart({
               type="monotone"
               dataKey="actual_generation_mw"
               name="Actual Generation Outturn"
-              stroke="#00e676"
+              stroke="#16a34a"
               strokeWidth={2}
-              dot={chartData.length <= 48 ? { r: 3, fill: '#00e676' } : false}
-              activeDot={{ r: 6, fill: '#00e676' }}
+              dot={chartData.length <= 48 ? { r: 3, fill: '#16a34a' } : false}
+              activeDot={{ r: 6, fill: '#16a34a' }}
               connectNulls={false}
               isAnimationActive={false}
             />
